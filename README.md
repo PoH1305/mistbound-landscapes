@@ -1,6 +1,7 @@
 # MistBound Landscape
 
 A single-file, infinite Chinese ink-wash landscape generator built with plain HTML, JavaScript, and SVG. It has no libraries, build tools, or dependencies.
+![MistBound Ink Art](assests/img.png)
 
 ## Run it
 
