@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mountain</title>
+    <style>
+        :root {
+            color-scheme: light;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            width: 100%;
+            min-height: 100%;
+            background: #f1e8d4;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+        }
+
+        .frame {
+            width: 100%;
+            height: 100vh;
+            background: #f1e8d4;
+        }
+
+        #scene {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #f1e8d4;
+        }
+    </style>
+</head>
+<body>
+    <div class="frame">
+    <svg id="scene" role="img" aria-label="Mountain sunrise landscape with layered peaks and a river">
+        <defs>
+            <linearGradient id="mist" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="#f1e8d4" stop-opacity="0" />
+                <stop offset="0.6" stop-color="#f1e8d4" stop-opacity="0.85" />
+                <stop offset="1" stop-color="#f1e8d4" stop-opacity="0" />
+            </linearGradient>
+            <filter id="paperGrainFilter" x="-5%" y="-5%" width="110%" height="110%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="19" />
+                <feColorMatrix type="saturate" values="0" />
+            </filter>
+        </defs>
+        <g id="sky">
+            <rect id="skyBackground" x="0" y="0" width="800" height="300" fill="#f1e8d4" />
+            <circle id="sun" cx="900" cy="55" r="20" fill="#b5483a" fill-opacity="0.85" />
+            <path id="moon" d="M 0 -20 A 20 20 0 1 0 0 20 A 14 20 0 0 1 0 -20 Z" fill="#e6e2d1" opacity="0" />
+        </g>
+        <g id="birds"></g>
+        <g id="m0"></g>
+        <g id="mist0"><rect x="-1000000" y="70" width="2000000" height="80" fill="url(#mist)" /></g>
+        <g id="m1"></g>
+        <g id="m1Details"></g>
+        <g id="mist1"><rect x="-1000000" y="115" width="2000000" height="80" fill="url(#mist)" /></g>
+        <g id = "river"></g>
+        <g id="m2"></g>
+        <g id="m2Details"></g>
+        <rect id="paperGrain" x="0" y="0" width="800" height="300" fill="#8f806c" filter="url(#paperGrainFilter)" opacity="0.06" pointer-events="none" />
+    </svg>
+    </div>
+
+    <script>
+
+        const defaultSeed = 777;
+        const seedFromUrl = Number(new URLSearchParams(window.location.search).get("seed"));
+        let worldSeed = Number.isSafeInteger(seedFromUrl) && seedFromUrl > 0 ? seedFromUrl : defaultSeed;
+        let seed = worldSeed;
+
+        function seedRandom(){
+            seed = (seed * 16807) % 2147483647;
+            return seed / 2147483647;
+        }
+
+        function randomBetween(min, max){
+            return min + seedRandom() * (max - min);
+        }
+
+        function ridge(t, pk, power){
+            let tent;
+            if (t < pk){
+                tent = t / pk;
+            }
+            else{
+                tent = (1 - t) / (1 - pk);
+            }
+            return Math.pow(tent, power);
+        }
+
+        function mountainPoints(cx, w, peakY, baseY, pk, power){
+            let pts = "";
+            const steps = 40;
+            
+            for(let i =0;i<=steps;i++){
+                const t = i / steps;
+                const x = cx - w / 2 + t * w;
+                const tent = ridge(t, pk, power);
+                const wobble = randomBetween(-9, 9) * Math.min(1, tent * 3);
+                const y = Math.min(baseY, baseY - tent * (baseY - peakY) + wobble);                
+                pts += x + ',' + y + ' ';
+            }
+            return pts;
+        }
+
+        function textureStroke(cx, w, peakY, baseY, opacity, pk, power){
+            let lines = "";
+
+            for(let k = 0; k < 15; k++){
+                const t = randomBetween(0, 1);
+                const x = cx - w / 2 + t * w;
+                const tent = ridge(t, pk, power);
+                const top = baseY - tent * (baseY - peakY);
+                const y1 = Math.min(randomBetween(top, baseY), baseY - 10);
+
+                lines += '<line x1="' + x + '" y1="' + y1 + '" x2="' + (x + 2) + '" y2="' + (y1 + 10) + '" stroke="black" stroke-opacity="' + opacity + '" stroke-width="0.8" />';
+            }
+            return lines;
+        }
+
+        function softTextureStroke(cx, w, peakY, baseY, opacity, pk, power){
+            let lines = "";
+            for(let k = 0; k < 7; k++){
+                const t = (k + 1) / 8;
+                const x = cx - w / 2 + t * w;
+                const top = baseY - ridge(t, pk, power) * (baseY - peakY);
+                const y = top + (baseY - top) * (0.35 + (k % 3) * 0.12);
+                lines += '<path d="M ' + x + ' ' + y + ' q 3 3 7 2" fill="none" stroke="#1a1a1a" stroke-opacity="' + (opacity * 0.22) + '" stroke-width="1.1" stroke-linecap="round" />';
+            }
+            return lines;
+        }
+
+        function tree(x, baseY, h){
+            let s = '<line x1="' + x + '" y1="' + baseY + '" x2="' + (x + randomBetween(-2, 2)) + '" y2="' + (baseY - h) + '" stroke="#1a1a1a" stroke-width="1.2" />';
+
+            for(let k = 0; k < 6; k++){
+                const bx = x + randomBetween(-h * 0.1, h * 0.4);
+                const by = baseY - h + randomBetween(-h * 0.1, h * 0.4);
+                const r = randomBetween(2, 5);
+                s += '<circle cx="' + bx + '" cy="' + by + '" r="' + r + '" fill="#1a1a1a" fill-opacity="0.35" />';
+            }
+            return s;
+        }
+
+        function riverCenter(x){
+            return 280 + 6 * Math.sin(x * 0.011) + 3 * Math.sin(x * 0.027 + 1.3);
+        }
+
+        function riverHalf(x){
+            return 5 + 2 * Math.sin(x * 0.017 + 0.5);
+        }
+
+        function boat(x){
+            const y = riverCenter(x);
+            return '<path d="M ' + (x - 13) + ' ' + y + ' Q ' + x + ' ' + (y + 6) + ' ' + (x + 13) + ' ' + y + ' L ' + (x + 9) + ' ' + (y + 3) + ' Q ' + x + ' ' + (y + 6) + ' ' + (x - 9) + ' ' + (y + 3) + ' Z" fill="#e4dbc6" stroke="#1a1a1a" stroke-width="1.6" stroke-linejoin="round" />'
+                + '<line x1="' + (x + 1) + '" y1="' + (y + 1) + '" x2="' + (x + 1) + '" y2="' + (y - 19) + '" stroke="#1a1a1a" stroke-width="1.2" />'
+                + '<path d="M ' + (x + 3) + ' ' + (y - 17) + ' L ' + (x + 12) + ' ' + (y - 6) + ' L ' + (x + 3) + ' ' + (y - 6) + ' Z" fill="#f1e8d4" fill-opacity="0.9" stroke="#1a1a1a" stroke-width="0.8" />'
+                + '<path d="M ' + (x - 16) + ' ' + (y + 6) + ' Q ' + x + ' ' + (y + 9) + ' ' + (x + 16) + ' ' + (y + 6) + '" fill="none" stroke="#1a1a1a" stroke-opacity="0.45" stroke-width="0.8" />';
+        }
+
+        function bird(x, y, size){
+            return '<path d="M ' + (x - size) + ' ' + y + ' Q ' + (x - size * 0.4) + ' ' + (y - size * 0.6) + ' ' + x + ' ' + y + ' Q ' + (x + size * 0.4) + ' ' + (y - size * 0.6) + ' ' + (x + size) + ' ' + y + '" fill="none" stroke="#1a1a1a" stroke-opacity="0.65" stroke-width="0.8" stroke-linecap="round" />';
+        }
+
+        function hut(x, baseY, size){
+            const halfW = size * 0.65;
+            const wallH = size * 0.8;
+            const roofY = baseY - wallH;
+            return '<rect x="' + (x - halfW * 0.65) + '" y="' + roofY + '" width="' + (halfW * 1.3) + '" height="' + wallH + '" fill="#f1e8d4" stroke="#1a1a1a" stroke-width="0.8" />'
+                + '<path d="M ' + (x - halfW) + ' ' + roofY + ' Q ' + x + ' ' + (baseY - size * 1.8) + ' ' + (x + halfW) + ' ' + roofY + ' Q ' + x + ' ' + (roofY + size * 0.15) + ' ' + (x - halfW) + ' ' + roofY + ' Z" fill="#2b2b2b" stroke="#1a1a1a" stroke-width="0.9" stroke-linejoin="round" />'
+                + '<path d="M ' + (x - size * 0.12) + ' ' + baseY + ' L ' + (x - size * 0.12) + ' ' + (baseY - wallH * 0.48) + ' Q ' + x + ' ' + (baseY - wallH * 0.58) + ' ' + (x + size * 0.12) + ' ' + (baseY - wallH * 0.48) + ' L ' + (x + size * 0.12) + ' ' + baseY + '" fill="none" stroke="#1a1a1a" stroke-width="0.7" />';
+        }
+
+        function bridge(index){
+            // The bridge is anchored to the river's x-based curve, so it joins the water cleanly.
+            if(((index % 4) + 4) % 4 !== 1) return "";
+            const x = index * 400 + 200;
+            const y = riverCenter(x);
+            return '<path d="M ' + (x - 18) + ' ' + (y + 3) + ' Q ' + x + ' ' + (y - 5) + ' ' + (x + 18) + ' ' + (y + 3) + '" fill="none" stroke="#1a1a1a" stroke-width="2" stroke-linecap="round" />'
+                + '<path d="M ' + (x - 15) + ' ' + (y + 1) + ' Q ' + x + ' ' + (y - 7) + ' ' + (x + 15) + ' ' + (y + 1) + '" fill="none" stroke="#1a1a1a" stroke-width="0.8" />'
+                + '<line x1="' + (x - 14) + '" y1="' + (y + 2) + '" x2="' + (x - 14) + '" y2="' + (y + 5) + '" stroke="#1a1a1a" stroke-width="0.8" />'
+                + '<line x1="' + (x + 14) + '" y1="' + (y + 2) + '" x2="' + (x + 14) + '" y2="' + (y + 5) + '" stroke="#1a1a1a" stroke-width="0.8" />';
+        }
+
+        function riverChunk(index){
+            const x0 = index *400 - 2;
+            const x1 = index * 400 + 402;
+            const steps = 40;
+            let top = "";
+            let bottom = "";
+
+            for(let i=0; i<= steps; i++){
+                const x = x0 + (x1 - x0) * i / steps;
+                const c = riverCenter(x);
+                const h = riverHalf(x);
+
+                top += x + "," + (c - h) + " ";
+                bottom = x + "," + (c + h) + " " + bottom;
+            }
+
+            return '<polygon points="' + top + bottom + '" fill="#e4dbc6" />'
+            + '<polyline points="' + top + '" fill="none" stroke="#1a1a1a" stroke-opacity="0.5" stroke-width="1" />'
+            + '<polyline points="' + bottom + '" fill="none" stroke="#1a1a1a" stroke-opacity="0.5" stroke-width="1" />'
+            + bridge(index);
+        }
+
+        function buildChunk(index){
+            const chunkSeed = 1234 + (index + 100000) * 48271;
+            // Keep the original default world, while other URL seeds shift every chunk repeatably.
+            seed = worldSeed === defaultSeed
+                ? chunkSeed
+                : ((chunkSeed + worldSeed - defaultSeed) % 2147483647 + 2147483647) % 2147483647;
+            if(seed === 0) seed = 1;
+            const parts = ["", "", "", "", "", "", "", "", ""];
+
+            for(let layer = 0; layer < 3; layer++){
+                const depth = layer / 2;
+                const baseY = 160 + depth * 90;
+                const opacity = 0.15 + depth * 0.53;
+
+                for(let i = 0; i < 4; i++){
+                    const cx = index * 400 + randomBetween(0, 400);
+                    const w = randomBetween(100, 200);
+                    const height = randomBetween(30, 60 + depth * 60);
+                    const pk = randomBetween(0.3, 0.7);
+                    const style = (((index % 3) + 3) % 3 + layer + i) % 3;
+                    const heightScale = style === 0 ? 1.25 : style === 1 ? 0.8 : 1;
+                    const power = style === 0 ? 3.2 : style === 1 ? 1.25 : 2;
+                    const peakY = baseY - height * heightScale;
+
+                    parts[layer * 2] += '<polygon points="' + mountainPoints(cx, w, peakY, baseY, pk, power) + '" fill="#2b2b2b" fill-opacity="' + opacity + '" stroke="#1a1a1a" stroke-opacity="' + (opacity * 0.8) + '" stroke-width="1" stroke-linejoin="round" />';
+                    parts[layer * 2] += textureStroke(cx, w, peakY, baseY, opacity, pk, power);
+                    parts[layer * 2] += softTextureStroke(cx, w, peakY, baseY, opacity, pk, power);
+                }
+            }
+            
+            for(let n = 0; n < 8; n++){
+                const tx = index*400 + randomBetween(0, 400);
+                parts[4] += tree(tx, 250, randomBetween(18, 35));
+                parts[4] += tree(tx + randomBetween(8, 20), 250, randomBetween(5, 20));
+            }
+
+            // Each chunk gets its own seeded count, so boat groups stay repeatable.
+            const boatCount = Math.floor(randomBetween(0, 4));
+            for(let n = 0; n < boatCount; n++){
+                const boatX = index * 400 + randomBetween(40 + n * 90, 130 + n * 90);
+                parts[5] += boat(boatX);
+            }
+
+            // Keep the distant birds in their own layer, behind the mountain silhouettes.
+            const birdCount = 2 + Math.floor(randomBetween(0, 3));
+            for(let n = 0; n < birdCount; n++){
+                const birdX = index * 400 + randomBetween(20, 380);
+                const birdY = randomBetween(28, 95);
+                const size = randomBetween(3, 6);
+                parts[6] += bird(birdX, birdY, size);
+            }
+
+            // Villages come after the existing scenery draws so its seeded layout stays familiar.
+            const hasVillage = ((index % 3) + 3) % 3 === 0;
+            if(hasVillage){
+                const villageX = index * 400 + randomBetween(110, 290);
+                const houseCount = 2 + Math.floor(randomBetween(0, 3));
+                for(let n = 0; n < houseCount; n++){
+                    const houseX = villageX + (n - (houseCount - 1) / 2) * randomBetween(13, 18);
+                    parts[4] += hut(houseX, 250, randomBetween(8, 13));
+                }
+            }
+
+            // Scattered homes make the foreground feel inhabited between village clusters.
+            const scatteredHouseCount = 1 + Math.floor(randomBetween(0, 3));
+            for(let n = 0; n < scatteredHouseCount; n++){
+                let houseX;
+                if(hasVillage && n % 2 === 0){
+                    houseX = index * 400 + randomBetween(25, 100);
+                }
+                else if(hasVillage){
+                    houseX = index * 400 + randomBetween(300, 375);
+                }
+                else{
+                    houseX = index * 400 + randomBetween(25, 375);
+                }
+                parts[4] += hut(houseX, 250, randomBetween(7, 12));
+            }
+
+            // Smaller details on the middle and front ridges make the landscape feel inhabited.
+            for(let row = 1; row <= 2; row++){
+                const baseY = 160 + (row / 2) * 90;
+                const detailScale = row === 1 ? 0.65 : 0.85;
+                const targetPart = 6 + row;
+                const ridgeTreeCount = 2 + Math.floor(randomBetween(0, 2));
+                for(let n = 0; n < ridgeTreeCount; n++){
+                    const treeX = index * 400 + randomBetween(20, 380);
+                    parts[targetPart] += tree(treeX, baseY, randomBetween(12, 24) * detailScale);
+                }
+
+                const houseX = index * 400 + randomBetween(30, 370);
+                parts[targetPart] += hut(houseX, baseY, randomBetween(8, 12) * detailScale);
+            }
+
+            return parts;
+        }
+        
+        const scene = document.getElementById("scene");
+        const sun = document.getElementById("sun");
+        const moon = document.getElementById("moon");
+        const skyBackground = document.getElementById("skyBackground");
+        const paperGrain = document.getElementById("paperGrain");
+        const nightLayers = ["birds", "m0", "mist0", "m1", "m1Details", "mist1", "river", "m2", "m2Details"]
+            .map(id => document.getElementById(id));
+        const built = {};
+        let camX = 0;
+        let viewW = 800;
+        let driftPhase = 0;
+        const dayLength = 3000;
+
+        function skyColor(night){
+            const day = [241, 232, 212];
+            const dark = [54, 68, 83];
+            const color = day.map((value, index) => Math.round(value + (dark[index] - value) * night));
+            return "rgb(" + color.join(",") + ")";
+        }
+
+        function showVisibleChunks() {
+            const first = Math.floor(camX / 400) - 1;
+            const last = Math.floor((camX + viewW) / 400) + 1;
+
+            for (let c = first; c <= last; c++) {
+                if (!built[c]) {
+                    built[c] = true;
+                    const parts = buildChunk(c);
+                    const ids = ["m0", "mist0", "m1", "mist1", "m2"];
+                    for(let k = 0; k< 5; k++){
+                        document.getElementById(ids[k]).insertAdjacentHTML("beforeend", parts[k]);
+                    }
+
+                    document.getElementById("birds").insertAdjacentHTML("beforeend", parts[6]);
+                    document.getElementById("m1Details").insertAdjacentHTML("beforeend", parts[7]);
+                    document.getElementById("m2Details").insertAdjacentHTML("beforeend", parts[8]);
+                    document.getElementById("river").insertAdjacentHTML("beforeend", riverChunk(c));
+                    document.getElementById("river").insertAdjacentHTML("beforeend", parts[5]);
+                }
+            }
+        }
+
+        function updateView() {
+            viewW = 300 * scene.clientWidth / scene.clientHeight;
+            scene.setAttribute("viewBox", camX + " 0 " + viewW + " 300");
+            // Normalize the phase so the cycle also works when the camera moves left of zero.
+            const phase = (((camX / dayLength) % 1) + 1) % 1;
+            const night = (1 - Math.cos(phase * Math.PI * 2)) / 2;
+            const skyX = camX + viewW * (0.8 + Math.sin(driftPhase) * 0.1);
+            const skyY = 55 + Math.cos(driftPhase * 0.75) * 10;
+            skyBackground.setAttribute("x", camX);
+            skyBackground.setAttribute("width", viewW);
+            skyBackground.setAttribute("fill", skyColor(night));
+            sun.setAttribute("opacity", 1 - night);
+            sun.setAttribute("cx", skyX);
+            sun.setAttribute("cy", skyY);
+            moon.setAttribute("opacity", night);
+            moon.setAttribute("transform", "translate(" + skyX + " " + skyY + ")");
+            for(const layer of nightLayers){
+                layer.style.filter = "brightness(" + (1 - night * 0.28) + ") saturate(" + (1 - night * 0.2) + ")";
+            }
+            // The grain follows the camera so it stays a single seamless screen-wide overlay.
+            paperGrain.setAttribute("x", camX);
+            paperGrain.setAttribute("width", viewW);
+            showVisibleChunks();
+        }
+
+        function moveCamera(dx) {
+            camX += dx;
+            updateView();
+        }
+
+        function changeSeed(nextSeed){
+            worldSeed = nextSeed;
+            const url = new URL(window.location.href);
+            url.searchParams.set("seed", String(worldSeed));
+            history.replaceState(null, "", url);
+
+            for(const id of ["birds", "m0", "m1", "m1Details", "river", "m2", "m2Details"]){
+                document.getElementById(id).replaceChildren();
+            }
+            for(const chunk in built) delete built[chunk];
+            updateView();
+        }
+
+        function animate() {
+            driftPhase += 0.01;
+            camX += 0.18;
+            updateView();
+            requestAnimationFrame(animate);
+        }
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "ArrowRight") moveCamera(10);
+            if (event.key === "ArrowLeft") moveCamera(-10);
+            if (event.key.toLowerCase() === "n"){
+                const values = new Uint32Array(1);
+                crypto.getRandomValues(values);
+                changeSeed(values[0] + 1);
+            }
+        });
+
+        window.addEventListener("resize", updateView);
+
+        updateView();
+        requestAnimationFrame(animate);
+    
+    </script>
+</body>
+</html>
